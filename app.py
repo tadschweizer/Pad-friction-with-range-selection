@@ -23,8 +23,8 @@ def make_fig(file_path, results, cm_lo, cm_hi, y_max):
     ax.legend()
     return fig
 
-st.set_page_config("Force Plotter", layout="wide")
-st.title("Force-vs-Cycle Plotter")
+st.set_page_config("Pad Friction with Range Selection", layout="wide")
+st.title("Pad Friction with Range Selection")
 
 uploaded_files = st.file_uploader(
     "Upload one or more .xlsx files",
