@@ -1,65 +1,37 @@
+# app.py
 import streamlit as st
-import numpy as np
 import tempfile
-from force_plotter import load_raw_data, process_file
+import os
+import numpy as np
+from force_plotter import load_raw_data, process_file, plot_individual
 
-import matplotlib.pyplot as plt
-from pathlib import Path
+st.set_page_config(page_title="Pad Friction with Range Selection", layout="wide")
+st.title("Pad Friction – Force-vs-Cycle Analyzer")
 
-def make_fig(file_path, results, cm_lo, cm_hi, y_max):
-    runs = range(1, len(results) + 1)
-    avg = [r[0] for r in results]
-    peak = [r[1] for r in results]
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(runs, avg, marker="o", label="Average Force")
-    ax.plot(runs, peak, marker="o", label="Peak Force")
-    ax.set(
-        xlabel="Run Number",
-        ylabel="Grams",
-        title=f"{Path(file_path).stem}  ({cm_lo:.1f}–{cm_hi:.1f} cm)",
-        ylim=(0, y_max),
-    )
-    ax.grid(True)
-    ax.legend()
-    return fig
-
-st.set_page_config("Pad Friction with Range Selection", layout="wide")
-st.title("Pad Friction with Range Selection")
-
-uploaded_files = st.file_uploader(
-    "Upload one or more .xlsx files",
-    type=["xlsx"],
-    accept_multiple_files=True,
-)
+uploaded_files = st.file_uploader("Upload .xlsx files", type="xlsx", accept_multiple_files=True)
 
 if uploaded_files:
-    tmp_paths = []
-    all_results = []
-    all_forces = []
+    all_avg, all_peak = [], []
+    dfs = {}
+    for file in uploaded_files:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+            tmp.write(file.read())
+            tmp_path = tmp.name
+        df = load_raw_data(tmp_path)
+        dfs[file.name] = (df, tmp_path)
 
-    for up_file in uploaded_files:
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
-        tmp.write(up_file.read())
-        tmp.close()
-        tmp_paths.append(tmp.name)
-
-    max_cm = max(load_raw_data(path)["Position mm"].max() / 10 for path in tmp_paths)
-
+    max_cm = max(df["Position mm"].max() / 10.0 for df, _ in dfs.values())
     cm_lo, cm_hi = st.slider("Select Centimeter Range", 0.0, float(round(max_cm, 1)), (0.0, float(round(max_cm, 1))), step=0.1)
-    y_buffer = st.number_input("Extra y-axis space (grams)", 0, 50, 5)
+    y_buffer = st.number_input("Add buffer to y-axis (grams)", 0, 50, 5)
 
     if st.button("Generate Plots"):
-        for path in tmp_paths:
+        for label, (df, path) in dfs.items():
             results = process_file(path, cm_lo, cm_hi)
-            all_results.append((path, results))
-            for a, p in results:
-                if not np.isnan(a): all_forces.append(a)
-                if not np.isnan(p): all_forces.append(p)
-
-        if not all_forces:
-            st.error("No usable force data found.")
-        else:
-            y_max = max(all_forces) + y_buffer
-            for path, results in all_results:
-                fig = make_fig(path, results, cm_lo, cm_hi, y_max)
-                st.pyplot(fig)
+            if not results:
+                st.warning(f"No usable data in {label}")
+                continue
+            avg, peak = zip(*[r for r in results if not np.isnan(r[0]) and not np.isnan(r[1])])
+            y_max = max(avg + peak) + y_buffer
+            fig = plot_individual(path, results, save_dir=None, cm_lo=cm_lo, cm_hi=cm_hi, y_max=y_max, suffix="")
+            st.subheader(label)
+            st.pyplot(fig)
