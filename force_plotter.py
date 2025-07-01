@@ -11,8 +11,6 @@ import sys
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import tkinter as tk
-from tkinter import filedialog, messagebox, Toplevel
 
 Y_BUFFER_G = 5  # grams of head‑room on the y‑axis
 
