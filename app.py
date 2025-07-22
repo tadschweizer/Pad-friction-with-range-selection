@@ -1,6 +1,5 @@
 import streamlit as st
 import tempfile
-import os
 import numpy as np
 from force_plotter import load_raw_data, process_file, plot_individual
 import plotly.graph_objects as go  # For combined plotting
@@ -8,18 +7,18 @@ import plotly.graph_objects as go  # For combined plotting
 st.set_page_config(page_title="Pad Friction with Range Selection", layout="wide")
 st.title("Pad Friction – Force-vs-Cycle Analyzer")
 
-# Predefined color bank
+# Predefined color bank with names
 COLOR_BANK = [
-    "#e6194b",  # red
-    "#3cb44b",  # green
-    "#ffe119",  # yellow
-    "#4363d8",  # blue
-    "#f58231",  # orange
-    "#911eb4",  # purple
-    "#46f0f0",  # cyan
-    "#f032e6",  # magenta
-    "#bcf60c",  # lime
-    "#fabebe"   # pink
+    ("Red",     "#e6194b"),
+    ("Green",   "#3cb44b"),
+    ("Yellow",  "#ffe119"),
+    ("Blue",    "#4363d8"),
+    ("Orange",  "#f58231"),
+    ("Purple",  "#911eb4"),
+    ("Cyan",    "#46f0f0"),
+    ("Magenta","#f032e6"),
+    ("Lime",    "#bcf60c"),
+    ("Pink",    "#fabebe")
 ]
 
 # Upload files
@@ -34,27 +33,33 @@ if uploaded_files:
         df = load_raw_data(tmp_path)
         dfs[file.name] = (df, tmp_path)
 
+    # Range selector
     max_cm = max(df["Position mm"].max() / 10.0 for df, _ in dfs.values())
     cm_lo, cm_hi = st.slider(
         "Select Centimeter Range", 0.0, float(round(max_cm, 1)),
         (0.0, float(round(max_cm, 1))), step=0.1
     )
-    y_buffer = st.number_input("Add buffer to y-axis (grams)", 0, 50, 5)
 
+    # Fixed buffer
+    y_buffer = 5
+
+    # Group prefixes
     prefixes = sorted({name.split('_')[0] for name in dfs.keys()})
-    st.subheader("Assign Colors to Groups from Bank")
+    st.subheader("Assign Colors to Groups")
     color_map = {}
-    for i, prefix in enumerate(prefixes):
-        # Cycle through COLOR_BANK if more prefixes than colors
-        default = COLOR_BANK[i % len(COLOR_BANK)]
-        key = f"color_{prefix}"
-        # Select box for color choice
-        color_map[prefix] = st.selectbox(
-            f"Color for '{prefix}'",
-            options=COLOR_BANK,
-            index=COLOR_BANK.index(default),
-            key=key
-        )
+    for idx, prefix in enumerate(prefixes):
+        # default assignment cycles through bank
+        default_idx = idx % len(COLOR_BANK)
+        # display radio buttons horizontally
+        cols = st.columns(len(COLOR_BANK))
+        st.write(f"**{prefix}**")
+        for i, (name, hex_code) in enumerate(COLOR_BANK):
+            with cols[i]:
+                if st.button(name, key=f"btn_{prefix}_{i}"):
+                    color_map[prefix] = hex_code
+        # set default if not yet chosen
+        if prefix not in color_map:
+            color_map[prefix] = COLOR_BANK[default_idx][1]
 
     # Individual plots
     if st.button("Generate Individual Plots"):
@@ -83,19 +88,19 @@ if uploaded_files:
             results = process_file(path, cm_lo, cm_hi)
             if not results:
                 continue
-            full_positions = df["Position mm"] / 10.0
-            mask = (full_positions >= cm_lo) & (full_positions <= cm_hi)
-            positions = full_positions[mask].unique().tolist()
+            positions = (df["Position mm"] / 10.0)[
+                (df["Position mm"]/10.0 >= cm_lo) & (df["Position mm"]/10.0 <= cm_hi)
+            ].unique().tolist()
             avgs = [r[0] for r in results]
             prefix = label.split('_')[0]
-            clr = color_map.get(prefix)
+            clr = color_map[prefix]
             combined_fig.add_trace(
                 go.Scatter(
                     x=positions,
                     y=avgs,
                     mode='lines+markers',
                     name=label,
-                    line=dict(color=clr),
+                    line=dict(color=clr, width=2),  # slightly thicker
                     marker=dict(color=clr)
                 )
             )
