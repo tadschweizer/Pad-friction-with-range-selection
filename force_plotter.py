@@ -1,13 +1,15 @@
-# force_plotter.py
-
 import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+
 def load_raw_data(file_path: str, sheet: str = "Raw Data") -> pd.DataFrame:
     raw = pd.read_excel(file_path, sheet_name=sheet, header=None, engine="openpyxl")
-    header_idx = next((i for i, r in raw.iterrows() if r.astype(str).str.contains(r"Position\s*mm", regex=True).any()), None)
+    header_idx = next(
+        (i for i, r in raw.iterrows() if r.astype(str).str.contains(r"Position\s*mm", regex=True).any()),
+        None
+    )
     if header_idx is None:
         raise ValueError(f"{os.path.basename(file_path)} – missing 'Position mm' header")
     header = [str(c).strip() for c in raw.iloc[header_idx]]
@@ -19,8 +21,10 @@ def load_raw_data(file_path: str, sheet: str = "Raw Data") -> pd.DataFrame:
     df = df.dropna(subset=["Position mm"]).reset_index(drop=True)
     return df
 
+
 def find_delimiters(df: pd.DataFrame):
     return df.index[df["Position mm"] == 0].tolist()
+
 
 def process_file(fp: str, cm_lo: float, cm_hi: float):
     try:
@@ -45,7 +49,16 @@ def process_file(fp: str, cm_lo: float, cm_hi: float):
             results.append((win["Pull Force g"].mean(), win["Pull Force g"].max()))
     return results
 
+
 def plot_individual(fp, res, save_dir, cm_lo, cm_hi, y_max, suffix):
+    """
+    Plot individual runs:
+    - fp: file path for title extraction
+    - res: list of (avg, peak) tuples
+    - cm_lo/cm_hi: range for filtering (not shown on title now)
+    - y_max: y-axis limit
+    - suffix: unused
+    """
     runs = range(1, len(res) + 1)
     avg = [r[0] for r in res]
     peak = [r[1] for r in res]
@@ -54,8 +67,11 @@ def plot_individual(fp, res, save_dir, cm_lo, cm_hi, y_max, suffix):
     ax.plot(runs, peak, marker="o", label="Peak Force")
     ax.set_xlabel("Run Number")
     ax.set_ylabel("Grams")
-    title = f"Force Metrics (cm {cm_lo:.1f}-{cm_hi:.1f}) – {os.path.splitext(os.path.basename(fp))[0].replace('_',' ')} {suffix}"
-    ax.set_title(title)
+
+    # Title set to filename only
+    filename = os.path.splitext(os.path.basename(fp))[0].replace('_', ' ')
+    ax.set_title(filename)
+
     ax.grid(True)
     ax.legend()
     ax.set_ylim(0, y_max)
