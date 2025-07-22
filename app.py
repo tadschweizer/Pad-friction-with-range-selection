@@ -7,24 +7,24 @@ import plotly.graph_objects as go  # For combined plotting
 st.set_page_config(page_title="Pad Friction with Range Selection", layout="wide")
 st.title("Pad Friction – Force-vs-Cycle Analyzer")
 
-# Predefined color bank with names
+# Predefined color bank with names and emojis
 COLOR_BANK = [
-    ("Red",     "#e6194b"),
-    ("Green",   "#3cb44b"),
-    ("Yellow",  "#ffe119"),
-    ("Blue",    "#4363d8"),
-    ("Orange",  "#f58231"),
-    ("Purple",  "#911eb4"),
-    ("Cyan",    "#46f0f0"),
-    ("Magenta","#f032e6"),
-    ("Lime",    "#bcf60c"),
-    ("Pink",    "#fabebe")
+    ("Red",     "#e6194b", "🔴"),
+    ("Green",   "#3cb44b", "🟢"),
+    ("Yellow",  "#ffe119", "🟡"),
+    ("Blue",    "#4363d8", "🔵"),
+    ("Orange",  "#f58231", "🟠"),
+    ("Purple",  "#911eb4", "🟣"),
+    ("Cyan",    "#46f0f0", "🔷"),
+    ("Magenta", "#f032e6", "🟪"),
+    ("Lime",    "#bcf60c", "🟩"),
+    ("Pink",    "#fabebe", "🩷")
 ]
 
 # Upload files
 uploaded_files = st.file_uploader("Upload .xlsx files", type="xlsx", accept_multiple_files=True)
-
 if uploaded_files:
+    # Load data
     dfs = {}
     for file in uploaded_files:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
@@ -43,23 +43,24 @@ if uploaded_files:
     # Fixed buffer
     y_buffer = 5
 
-    # Group prefixes
+    # Color assignment
     prefixes = sorted({name.split('_')[0] for name in dfs.keys()})
     st.subheader("Assign Colors to Groups")
     color_map = {}
     for idx, prefix in enumerate(prefixes):
-        # default assignment cycles through bank
+        key = f"color_{prefix}"
+        # Build options with emoji + name
+        options = [f"{emoji} {name}" for name, _, emoji in COLOR_BANK]
+        # Default based on index
         default_idx = idx % len(COLOR_BANK)
-        # display radio buttons horizontally
-        cols = st.columns(len(COLOR_BANK))
-        st.write(f"**{prefix}**")
-        for i, (name, hex_code) in enumerate(COLOR_BANK):
-            with cols[i]:
-                if st.button(name, key=f"btn_{prefix}_{i}"):
-                    color_map[prefix] = hex_code
-        # set default if not yet chosen
-        if prefix not in color_map:
-            color_map[prefix] = COLOR_BANK[default_idx][1]
+        choice = st.radio(
+            f"{prefix}", options,
+            index=default_idx, key=key, horizontal=True
+        )
+        # Extract name and find hex
+        selected_name = choice.split(' ', 1)[1]
+        hex_code = next(hex for name, hex, _ in COLOR_BANK if name == selected_name)
+        color_map[prefix] = hex_code
 
     # Individual plots
     if st.button("Generate Individual Plots"):
@@ -100,7 +101,7 @@ if uploaded_files:
                     y=avgs,
                     mode='lines+markers',
                     name=label,
-                    line=dict(color=clr, width=2),  # slightly thicker
+                    line=dict(color=clr, width=2),
                     marker=dict(color=clr)
                 )
             )
