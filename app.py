@@ -33,7 +33,7 @@ if uploaded_files:
         df = load_raw_data(tmp_path)
         dfs[file.name] = (df, tmp_path)
 
-    # Range selector
+    # Range selector (position-based filtering)
     max_cm = max(df["Position mm"].max() / 10.0 for df, _ in dfs.values())
     cm_lo, cm_hi = st.slider(
         "Select Centimeter Range", 0.0, float(round(max_cm, 1)),
@@ -49,17 +49,14 @@ if uploaded_files:
     color_map = {}
     for idx, prefix in enumerate(prefixes):
         key = f"color_{prefix}"
-        # Build options with emoji + name
         options = [f"{emoji} {name}" for name, _, emoji in COLOR_BANK]
-        # Default based on index
         default_idx = idx % len(COLOR_BANK)
         choice = st.radio(
             f"{prefix}", options,
             index=default_idx, key=key, horizontal=True
         )
-        # Extract name and find hex
         selected_name = choice.split(' ', 1)[1]
-        hex_code = next(hex for name, hex, _ in COLOR_BANK if name == selected_name)
+        hex_code = next(h for name, h, _ in COLOR_BANK if name == selected_name)
         color_map[prefix] = hex_code
 
     # Individual plots
@@ -82,32 +79,31 @@ if uploaded_files:
             st.subheader(label)
             st.pyplot(fig)
 
-    # Combined average plot
+    # Combined average plot by cycle number
     if st.button("Generate Combined Average Plot"):
         combined_fig = go.Figure()
         for label, (df, path) in dfs.items():
             results = process_file(path, cm_lo, cm_hi)
             if not results:
                 continue
-            positions = (df["Position mm"] / 10.0)[
-                (df["Position mm"]/10.0 >= cm_lo) & (df["Position mm"]/10.0 <= cm_hi)
-            ].unique().tolist()
+            # Use cycle index (1-based) instead of position
             avgs = [r[0] for r in results]
+            cycles = list(range(1, len(avgs) + 1))
             prefix = label.split('_')[0]
             clr = color_map[prefix]
             combined_fig.add_trace(
                 go.Scatter(
-                    x=positions,
+                    x=cycles,
                     y=avgs,
                     mode='lines+markers',
                     name=label,
-                    line=dict(color=clr, width=2),
+                    line=dict(color=clr, width=2),  # slightly thicker
                     marker=dict(color=clr)
                 )
             )
         combined_fig.update_layout(
-            title="Combined Average Force vs Position",
-            xaxis_title="Position (cm)",
+            title="Combined Average Force vs Cycle",
+            xaxis_title="Cycle Number",
             yaxis_title="Average Force (g)",
             yaxis=dict(range=[0, None])
         )
