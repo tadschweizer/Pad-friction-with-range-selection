@@ -8,11 +8,24 @@ import plotly.graph_objects as go  # For combined plotting
 st.set_page_config(page_title="Pad Friction with Range Selection", layout="wide")
 st.title("Pad Friction – Force-vs-Cycle Analyzer")
 
+# Predefined color bank
+COLOR_BANK = [
+    "#e6194b",  # red
+    "#3cb44b",  # green
+    "#ffe119",  # yellow
+    "#4363d8",  # blue
+    "#f58231",  # orange
+    "#911eb4",  # purple
+    "#46f0f0",  # cyan
+    "#f032e6",  # magenta
+    "#bcf60c",  # lime
+    "#fabebe"   # pink
+]
+
 # Upload files
 uploaded_files = st.file_uploader("Upload .xlsx files", type="xlsx", accept_multiple_files=True)
 
 if uploaded_files:
-    # Load data into dict
     dfs = {}
     for file in uploaded_files:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
@@ -21,7 +34,6 @@ if uploaded_files:
         df = load_raw_data(tmp_path)
         dfs[file.name] = (df, tmp_path)
 
-    # Determine max range in cm
     max_cm = max(df["Position mm"].max() / 10.0 for df, _ in dfs.values())
     cm_lo, cm_hi = st.slider(
         "Select Centimeter Range", 0.0, float(round(max_cm, 1)),
@@ -29,23 +41,22 @@ if uploaded_files:
     )
     y_buffer = st.number_input("Add buffer to y-axis (grams)", 0, 50, 5)
 
-    # Group detection by filename prefix
     prefixes = sorted({name.split('_')[0] for name in dfs.keys()})
-    st.subheader("Assign Colors to Groups")
+    st.subheader("Assign Colors to Groups from Bank")
     color_map = {}
-    # Persist color selections via session_state
-    for prefix in prefixes:
+    for i, prefix in enumerate(prefixes):
+        # Cycle through COLOR_BANK if more prefixes than colors
+        default = COLOR_BANK[i % len(COLOR_BANK)]
         key = f"color_{prefix}"
-        if key not in st.session_state:
-            # initialize default
-            st.session_state[key] = "#" + ''.join(
-                np.random.choice(list('0123456789ABCDEF'), size=6)
-            )
-        color_map[prefix] = st.color_picker(
-            f"Color for '{prefix}'", st.session_state[key], key=key
+        # Select box for color choice
+        color_map[prefix] = st.selectbox(
+            f"Color for '{prefix}'",
+            options=COLOR_BANK,
+            index=COLOR_BANK.index(default),
+            key=key
         )
 
-    # Generate individual plots (Matplotlib)
+    # Individual plots
     if st.button("Generate Individual Plots"):
         for label, (df, path) in dfs.items():
             results = process_file(path, cm_lo, cm_hi)
@@ -65,15 +76,14 @@ if uploaded_files:
             st.subheader(label)
             st.pyplot(fig)
 
-    # Generate combined average plot (Plotly)
+    # Combined average plot
     if st.button("Generate Combined Average Plot"):
         combined_fig = go.Figure()
         for label, (df, path) in dfs.items():
             results = process_file(path, cm_lo, cm_hi)
             if not results:
                 continue
-            # Reconstruct positions from df, matching results length
-            full_positions = (df["Position mm"] / 10.0)
+            full_positions = df["Position mm"] / 10.0
             mask = (full_positions >= cm_lo) & (full_positions <= cm_hi)
             positions = full_positions[mask].unique().tolist()
             avgs = [r[0] for r in results]
@@ -97,4 +107,4 @@ if uploaded_files:
         )
         st.plotly_chart(combined_fig, use_container_width=True)
 
-# Remember to add `plotly` to requirements.txt and run `pip install -r requirements.txt`
+# Ensure `plotly` in requirements.txt
