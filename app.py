@@ -3,7 +3,7 @@ import tempfile
 import os
 import numpy as np
 from force_plotter import load_raw_data, process_file, plot_individual
-import plotly.graph_objects as go  # Added for combined plotting
+import plotly.graph_objects as go  # For combined plotting
 
 st.set_page_config(page_title="Pad Friction with Range Selection", layout="wide")
 st.title("Pad Friction – Force-vs-Cycle Analyzer")
@@ -33,12 +33,19 @@ if uploaded_files:
     prefixes = sorted({name.split('_')[0] for name in dfs.keys()})
     st.subheader("Assign Colors to Groups")
     color_map = {}
+    # Persist color selections via session_state
     for prefix in prefixes:
-        # Let user pick a color per group
-        default_color = "#" + ''.join(np.random.choice(list('0123456789ABCDEF'), size=6))
-        color_map[prefix] = st.color_picker(f"Color for '{prefix}'", default_color)
+        key = f"color_{prefix}"
+        if key not in st.session_state:
+            # initialize default
+            st.session_state[key] = "#" + ''.join(
+                np.random.choice(list('0123456789ABCDEF'), size=6)
+            )
+        color_map[prefix] = st.color_picker(
+            f"Color for '{prefix}'", st.session_state[key], key=key
+        )
 
-    # Individual plots (Matplotlib)
+    # Generate individual plots (Matplotlib)
     if st.button("Generate Individual Plots"):
         for label, (df, path) in dfs.items():
             results = process_file(path, cm_lo, cm_hi)
@@ -58,15 +65,17 @@ if uploaded_files:
             st.subheader(label)
             st.pyplot(fig)
 
-    # Combined average plot (Plotly)
+    # Generate combined average plot (Plotly)
     if st.button("Generate Combined Average Plot"):
         combined_fig = go.Figure()
-        for label, (_, path) in dfs.items():
+        for label, (df, path) in dfs.items():
             results = process_file(path, cm_lo, cm_hi)
             if not results:
                 continue
-            # position (cm) is at index 2, average at index 0
-            positions = [r[2] for r in results]
+            # Reconstruct positions from df, matching results length
+            full_positions = (df["Position mm"] / 10.0)
+            mask = (full_positions >= cm_lo) & (full_positions <= cm_hi)
+            positions = full_positions[mask].unique().tolist()
             avgs = [r[0] for r in results]
             prefix = label.split('_')[0]
             clr = color_map.get(prefix)
@@ -88,4 +97,4 @@ if uploaded_files:
         )
         st.plotly_chart(combined_fig, use_container_width=True)
 
-# Note: Add `plotly` to requirements.txt if not already present.
+# Remember to add `plotly` to requirements.txt and run `pip install -r requirements.txt`
