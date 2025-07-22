@@ -76,6 +76,14 @@ if uploaded_files:
                 y_max=y_max,
                 suffix=""
             )
+            # Override figure title to filename
+            try:
+                fig.suptitle(label)
+            except Exception:
+                try:
+                    fig.axes[0].set_title(label)
+                except Exception:
+                    pass
             st.subheader(label)
             st.pyplot(fig)
 
